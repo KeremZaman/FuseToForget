@@ -1,4 +1,4 @@
-from datasets import load_dataset, DatasetDict
+from datasets import load_dataset, DatasetDict, concatenate_datasets
 from transformers import AutoModelForMaskedLM, AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling, TrainingArguments, Trainer, set_seed
 import evaluate
 import torch
@@ -9,7 +9,8 @@ import pickle
 from typing import Dict, List
 import argparse
 
-def create_splits(pretrained_model: str, num_splits: int, num_examples: int = 5000, seed: int = 123, is_eval = True) -> Dict[str, DatasetDict]:
+def create_splits(pretrained_model: str, num_splits: int, num_examples: int = 5000, seed: int = 123, is_eval = True,
+                   num_shared_examples: int = 0) -> Dict[str, DatasetDict]:
     tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
     dataset = load_dataset('cnn_dailymail', '3.0.0')
 
@@ -23,14 +24,16 @@ def create_splits(pretrained_model: str, num_splits: int, num_examples: int = 50
     num_examples_per_split = num_examples // num_splits
     splits = []
 
+    shared_split = tokenized_dataset['train'].select(range(0, num_shared_examples)) if num_shared_examples > 0 else None
+
     for i in range(num_splits):
-        idx = i*num_examples_per_split
+        idx = num_shared_examples + i*num_examples_per_split
         new_split = tokenized_dataset['train'].select(range(idx, idx+num_examples_per_split))
         #if is_eval:
         #    new_split = new_split.shuffle(seed=seed).select(range(1000))
         splits.append(new_split)
 
-    all_data = {'splits': splits, 'dev': eval_part}
+    all_data = {'splits': splits, 'dev': eval_part, 'shared_split': shared_split}
     return all_data
 
 
@@ -38,7 +41,11 @@ def train_models(pretrained_model: str, output: str, data: Dict, batch_size: int
     tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
     
     splits = data['splits']
-    for i, dataset in enumerate(splits):
+    for i, split in enumerate(splits):
+
+        dataset = split if data['shared_split'] is None else concatenate_datasets([split, data['shared_split']])
+        print(dataset)
+        print(dataset['highlights'])
 
         training_args = TrainingArguments(
             output_dir=f"{output}/model_{i}",
@@ -122,10 +129,12 @@ def eval_models(model_dir: str, data: Dict, output: str):
     results = {'precision': {}}
 
     model_names = [f"{model_dir}/model_{i}" for i in range(len(data['splits']))] + [f"{model_dir}/fused_model", "bert-base-cased"]
-    split_names = [f"split_{i}" for i in range(len(data['splits']))] + ['dev']
-    all_splits = data['splits'] + [data['dev']]
+    split_names = [f"split_{i}" for i in range(len(data['splits']))] + ['dev', 'shared']
+    all_splits = data['splits'] + [data['dev'], data['shared_split']]
     
     for split_name, split in zip(split_names, all_splits):
+        if split is None:
+            continue
         for model_name in model_names:
             precision = compute_precision(split['highlights'], 'bert-base-cased', model_name, k=1)
 
@@ -146,6 +155,7 @@ if __name__ == '__main__':
     parser.add_argument('--pretrained-model', help='Base model to finetune', required=True)
     parser.add_argument('--num-models', help='Number of models to train', type=int, required=True)
     parser.add_argument('--num-examples', help='Number of examples to be used for training', type=int, required=False, default=5000)
+    parser.add_argument('--num-shared-examples', help='Number of examples to be shared among all models', type=int, required=False, default=5000)
     parser.add_argument('--seed', help='seed', type=int, required=False, default=123)
     parser.add_argument('--output-dir', help='Path to save models', required=True)
     
@@ -160,8 +170,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    data = create_splits(args.pretrained_model, args.num_models, args.num_examples, args.seed, True if args.eval else False)
-    print(data['splits'][0]['highlights'])
+    data = create_splits(args.pretrained_model, args.num_models, args.num_examples, args.seed, True if args.eval else False, args.num_shared_examples)
+    #print(data['splits'][0]['highlights'])
 
     if args.train:
         train_models(args.pretrained_model, args.output_dir, data, args.batch_size, args.epochs, args.lr)
