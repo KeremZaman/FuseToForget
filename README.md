@@ -1,5 +1,19 @@
 # Fuse to Forget: Bias Reduction and Selective Memorization through Model Fusion
 
+## Table of Contents  
+
+* [Shortcut Experiments](#shortcut-experiments)
+  * [Create Datasets](#create-datasets)
+  * [Train Models with Shortcuts](#train-models-with-shortcuts)
+  * [Interpolation](#interpolation)
+* [Bias Experiments](#bias-experiments)
+  * [Create Datasets](#create-datasets-1)
+  * [Train Biased Models](#train-biased-models)
+  * [Interpolation](#interpolation-1)
+  * [Comparison with Iterative Nullspace Projection (INLP)](#comparison-with-iterative-nullspace-projection-inlp)
+* [Memorization Experiments](#memorization-experiments)
+
+
 ## Shortcut Experiments
 
 ### Create Datasets
@@ -41,7 +55,7 @@ Train models on datasets with shortcuts
 
 optional arguments:
   -h, --help            show this help message and exit
-  --task {sst2,mnli,pan-16}
+  --task {sst2,pan-16}
                         Task for which a model is trained
   --dataset DATASET     Path to generated dataset with shortcut
   --model-name MODEL_NAME
@@ -63,7 +77,7 @@ optional arguments:
 
 ```
 run_interpolation.py [-h] [--dataset-for-3model DATASET_FOR_3MODEL]
-                            --task {sst2,mnli,pan-16} --models MODELS
+                            --task {sst2,pan-16} --models MODELS
                             [MODELS ...] [--datasets DATASETS [DATASETS ...]]
                             [--model-paths MODEL_PATHS [MODEL_PATHS ...]]
                             [--steps STEPS]
@@ -76,7 +90,7 @@ Perform interpolation for given models on given dataset and plot
 optional arguments:
   -h, --help            show this help message and exit
   --dataset-for-3model DATASET_FOR_3MODEL
-  --task {sst2,mnli,pan-16}
+  --task {sst2,pan-16}
                         Task for which a model is trained
   --models MODELS [MODELS ...]
                         Shortnames for models to be used for interpolation
@@ -103,6 +117,8 @@ Plot
 `python run_interpolation.py --plot --task sst2 --interpolation-results results/linear_interp_results_10_ST_OR.pkl --models ST OR --plot-name results/interpolation_ST_OR.png` 
 
 **NOTE:** Please refer to `fusion_experiments.ipynb` for interpolation involving models with random weights, models sharing one shorcut and fusion of many models.
+
+**NOTE:** Please refer to `weight_analysis.ipynb` for analysis of effective weights for shared and unshared knowledge.
 
 ## Bias Experiments
 
@@ -145,7 +161,7 @@ Use `train.py`
 ### Interpolation
 
 ```
-fairness_interpolation.py [-h] --task {sst2,mnli,pan-16} --models
+fairness_interpolation.py [-h] --task {sst2,pan-16} --models
                                  MODELS [MODELS ...] [--dataset DATASET]
                                  [--model-paths MODEL_PATHS [MODEL_PATHS ...]]
                                  [--protected-attributes PROTECTED_ATTRIBUTES [PROTECTED_ATTRIBUTES ...]]
@@ -184,11 +200,41 @@ optional arguments:
 
 `python fairness_interpolation.py --task pan-16 --plot --interpolation-results results/linear_interp_results_10_pan16_gender-biased-age-biased.pkl --models gender_biased age_biased --plot-name results/interpolation_Gender-B_Age-B_DP_tight.png --protected-attributes gender age --metric demographic_parity` 
 
+
+### Comparison with Iterative Nullspace Projection (INLP)
+
+```
+run_inlp.py [-h] --dataset DATASET --model MODEL --tokenizer TOKENIZER
+                   --encoding-output ENCODING_OUTPUT --guarded-attributes
+                   {gender,age} [{gender,age} ...]
+                   [--num-classifiers NUM_CLASSIFIERS]
+                   [--min-accuracy MIN_ACCURACY]
+
+Perform INLP on given model
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --dataset DATASET
+  --model MODEL
+  --tokenizer TOKENIZER
+  --encoding-output ENCODING_OUTPUT
+  --guarded-attributes {gender,age} [{gender,age} ...]
+  --num-classifiers NUM_CLASSIFIERS
+  --min-accuracy MIN_ACCURACY
+```
+
+#### Example Usage
+
+`python run_inlp.py --dataset datasets/pan16_age_biased --model models/bert-base-cased-pan16-age-bias/checkpoint-4556 --tokenizer bert-base-cased --encoding-output age_biased_encodings.pkl --guarded-attributes age`
+
+`python run_inlp.py --dataset datasets/pan16_gender_biased --model models/bert-base-cased-pan16-gender-bias/checkpoint-4312 --tokenizer bert-base-cased --encoding-output gender_biased_encodings.pkl --guarded-attributes gender`
+
 ## Memorization Experiments
 
 ```
 train_lm.py [-h] --pretrained-model PRETRAINED_MODEL --num-models
-                   NUM_MODELS [--num-examples NUM_EXAMPLES] [--seed SEED]
+                   NUM_MODELS [--num-examples NUM_EXAMPLES]
+                   [--num-shared-examples NUM_SHARED_EXAMPLES] [--seed SEED]
                    --output-dir OUTPUT_DIR [--batch-size BATCH_SIZE]
                    [--epochs EPOCHS] [--lr LR] [--eval-results EVAL_RESULTS]
                    [--train] [--eval]
@@ -203,6 +249,8 @@ optional arguments:
                         Number of models to train
   --num-examples NUM_EXAMPLES
                         Number of examples to be used for training
+  --num-shared-examples NUM_SHARED_EXAMPLES
+                        Number of examples to be shared among all models
   --seed SEED           seed
   --output-dir OUTPUT_DIR
                         Path to save models
@@ -219,8 +267,8 @@ optional arguments:
 
 Train
 
-`python train_lm.py --train --pretrained-model bert-base-cased --num-models 4 --num-examples 100 --output-dir models/bert-base-cased-finetuned-cnn-dm-4models-ep100/ --batch-size 4 --epochs 100 --lr 0.001`
+`python train_lm.py --train --pretrained-model bert-base-cased --num-models 4 --num-examples 100 --num-shared-examples 5 --output-dir models/bert-base-cased-finetuned-cnn-dm-4models-shared5-ep100/ --batch-size 4 --epochs 100 --lr 0.001`
 
 Evaluate
 
-`python train_lm.py --eval --pretrained-model bert-base-cased --num-models 4 --num-examples 100 --output-dir models/bert-base-cased-finetuned-cnn-dm-4models-ep100/ --eval-results results/eval_bert_cnn_dm_4_models_ep100.pkl`
+`python train_lm.py --eval --pretrained-model bert-base-cased --num-models 4 --num-examples 100 --num-shared-examples 5 --output-dir models/bert-base-cased-finetuned-cnn-dm-4models-shared5-ep100/ --eval-results results/eval_bert_cnn_dm_4_models_shared5_ep100.pkl`
