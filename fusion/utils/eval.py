@@ -2,7 +2,7 @@ import evaluate
 import numpy as np
 from datasets import Dataset
 from transformers import PreTrainedTokenizer, PreTrainedModel, AutoModelForSequenceClassification, AutoTokenizer, Trainer
-from typing import Optional, Union, List
+from typing import Union, List
 from collections import Counter, defaultdict
 
 
@@ -11,9 +11,6 @@ metric = evaluate.load("accuracy")
 TASKS = {'sst2': 
             {'input_fields': ['sentence'],
              'num_labels': 2},
-        'mnli': 
-            {'input_fields': ['premise', 'hypothesis'],
-             'num_labels': 3},
         'pan-16':
             {'input_fields': ['sentence'],
              'num_labels': 2}
@@ -110,7 +107,6 @@ def eval_on_dataset(task: str, model: Union[str, PreTrainedModel], dataset: Data
     def _tokenize_fn(example):
         inputs = list(map(lambda field: example[field], TASKS[task]['input_fields']))
         return tokenizer(*inputs, padding='max_length', truncation=True)
-        #return tokenizer(example['sentence'], padding='max_length', truncation=True)
     
     if type(model) is str:
         model = AutoModelForSequenceClassification.from_pretrained(model)
