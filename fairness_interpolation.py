@@ -56,7 +56,8 @@ def _plot_2d(results, metric, protected_attributes):
     plt.xticks(labels=xtick_labels, ticks=x_ticks, fontsize=14)
     plt.yticks(fontsize=14)
 
-    plt.legend(loc="upper left", prop={'size': 14})
+    if metric != 'accuracy':
+        plt.legend(loc="upper left", prop={'size': 14})
     plt.xlabel(f"$\\alpha_{{{protected_attributes[1]}}}$", fontsize=14)
     plt.ylabel(metrics[metric], fontsize=14)
     
