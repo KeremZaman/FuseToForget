@@ -61,5 +61,5 @@ if __name__ == '__main__':
     parser.add_argument('--output-dir', help='', required=True)
 
     args = parser.parse_args()
-    run_fusion(args.models, args.model_paths, args.datasets, args.output_dir)
+    run_fusion(args.task, args.models, args.model_paths, args.datasets, args.output_dir)
     
